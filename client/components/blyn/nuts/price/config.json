@@ -1,0 +1,11 @@
+{
+    "type":"nut.normal",
+	"permits": {
+		"admin": {
+			"alias": "admin stuff"
+		},
+		"manage": {
+			"alias": "manage stuff"
+		}
+	}
+}

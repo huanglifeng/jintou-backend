@@ -9,7 +9,7 @@ angular.module('billynApp.core')
                 templateUrl: 'components/blyn/core/dash/view/listMessage.html',
                 controller: 'ListMessageController',
                 controllerAs: 'listMessage',
-                ncyBreadcrumb: { skip: true },
+                ncyBreadcrumb: {label:'个人空间'},
                 authenticate: true
             })
             .state('pc.createSpace', {
@@ -37,13 +37,6 @@ angular.module('billynApp.core')
                 controllerAs: 'vm',
                 ncyBreadcrumb: { label: '加入机构' },
                 authenticate: true
-            })
-            .state('pc.profile', {
-                url: '/profile',
-                templateUrl: 'components/blyn/core/dash/view/profile.html',
-                authenticate: true
-                //controller: 'blyn.home.profile.showController',
-                //controllerAs: 'showProfile'
             })
             .state('mobile.dashboard', {
                 url: '/dashboard',

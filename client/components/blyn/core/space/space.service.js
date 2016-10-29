@@ -4,6 +4,7 @@
 
 	function SpaceService($resource, User, $q, Util, BApp, $rootScope, BRole, BCircle, $http) {
 		var safeCb = Util.safeCb;
+		var current = {};
 		var resSpace = $resource('/api/spaces/:id/:controller', {
 			id: '@_id'
 		}, {
@@ -31,6 +32,14 @@
 					params: {
 						id: 'user',
 						controller: 'joinable',
+					},
+					isArray: true
+				},
+				batchAddUserSpace: {
+					method: 'POST',
+					params: {
+						id: 'user',
+						controller: 'batch'
 					},
 					isArray: true
 				}
@@ -222,7 +231,7 @@
 		service.create = function (spaceData) {
 			var config, newSpace, theType;
 			var that = this;
-			return this.getConfig().then(function (conf) {
+			return this.loadConfig().then(function (conf) {
 				config = conf;
 				var types = config.types;
 				theType = types[spaceData.type];
@@ -241,7 +250,8 @@
 					apps.push('userApp');
 				} else {
 					if (theType.apps) {
-						theType.apps.forEach(function (appName) {
+						theType.apps.forEach(function (oApp) {
+							var appName = oApp.name;
 							if (appName.toLowerCase() != 'appengine') {
 								apps.push(appName);
 							}
@@ -337,9 +347,24 @@
 				}).$promise;
 		}
 
-		service.setCurrent = function (space) {
-			return currentSpace = space;
+		service.setCurrent = function (spaceData) {
+			var that = this;
+			//return currentSpace = space;
+			return this.loadConfig().then(function () {
+				return that.loadSpace(spaceData);
+			})
 		};
+
+		service.loadSpace = function (spaceData) {
+			return this.find(spaceData).then(function (space) {
+				current = space;
+				return $q.when(space);
+			})
+		}
+
+		service.getCurrent = function () {
+			return current;
+		}
 
 		service.current = function (callback) {
 			if (arguments.length === 0) {
@@ -392,7 +417,7 @@
 
 		service.find = function (findData) {
 
-			console.log('in find space: ');
+			//console.log('in find space: ');
 
 			if ((angular.isNumber(findData) && findData > 0) || (parseInt(findData) && parseInt(findData) > 0)) {
 				return resSpace.get({
@@ -515,6 +540,112 @@
 			return resSpace.findUserSpaces({
 				//userId: user._id,
 				joinStatus: ['applying', 'following']
+			}).$promise;
+		}
+
+		service.loadConfig = function (isCombined = true) {
+            var that = this;
+            return $http.get("components/blyn/core/space/config.json").then(function (oConfig) {
+                current.config = oConfig.data;
+				if (isCombined) {
+					return $http.get("components/blyn/core/app/config.json").then(function (oConfig) {
+						var appConfig = oConfig.data;
+						var spaceConfig = current.config;
+						var spaceTypes = spaceConfig.types;
+						var configApps = appConfig.apps;
+						var configUsers = spaceConfig.userSpaces.users;
+						angular.forEach(spaceTypes, function (sType, tKey) {
+							sType.name = tKey;
+							var apps = sType.apps;
+							var rApps = [];
+							angular.forEach(configApps, function (oConfig, key) {
+								apps.forEach(function (appName, index) {
+									if (appName === key) {
+										oConfig.name = key;
+										rApps.push(oConfig);
+									}
+								})
+							})
+							sType.apps = rApps;
+							//spaceConfig.type = sType;
+						})
+
+						angular.forEach(configUsers, function (userData, index) {
+							var listUserData = [];
+							userData.forEach(function (oUserData, index) {
+								angular.forEach(spaceTypes, function (oType, key) {
+									if (oUserData.spaceData && oUserData.spaceData.type === key) {
+										oUserData.spaceData.type = oType;
+									}
+								})
+								listUserData.push(oUserData);
+							})
+							spaceConfig['userSpaces']['users'][index] = listUserData;
+						})
+						current.config = spaceConfig
+						return $q.when(current.config);
+					})
+				}
+
+                return $q.when(current.config);
+
+            })
+        }
+
+        service.getConfig = function (path) {
+            var config = current.config;
+            var list = path.splite('.');
+            var o = config;
+            var error = false;
+            list.forEach(function (s) {
+                if (o[s]) {
+                    o = o[s];
+                } else {
+                    error = true;
+                }
+            })
+            if (error) {
+                return config;
+            } else {
+                return o;
+            }
+        }
+
+		service.initUserSpaces = function (user) {
+
+			var that = this;
+
+			return this.loadConfig().then(function (config) {
+				var configUserSpaces = config.userSpaces;
+				var users = configUserSpaces.users;
+				var uLoginId = user.loginId;
+
+				var createList = [];
+				if (configUserSpaces.users.hasOwnProperty('all')) {
+					createList = createList.concat(configUserSpaces.users['all']);
+				}
+
+				if (configUserSpaces.users.hasOwnProperty(uLoginId)) {
+					createList = createList.concat(configUserSpaces.users[uLoginId]);
+				}
+
+				if (createList.length > 0) {
+					return that.batchAddUserSpace(createList);
+				} else {
+					return $q.when(null);
+				}
+			})
+		}
+
+		service.batchAddUserSpace = function (listSpaceData) {
+			return resSpace.batchAddUserSpace({
+				spaces: listSpaceData
+			}).$promise;
+		}
+
+		service.batchJoinUserSpace = function (listSpaceData) {
+			return resSpace.batchJoinUserSpace({
+				spaces: listSpaceData
 			}).$promise;
 		}
 
